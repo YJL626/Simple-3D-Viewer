@@ -233,6 +233,27 @@ p {
   align-items: center;
 }
 
+.inline-range {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 0.6rem;
+  align-items: center;
+  margin-top: 0.4rem;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.inline-range input {
+  width: 100%;
+}
+
+.inline-value {
+  min-width: 2.5rem;
+  text-align: right;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
 .section-sep {
   height: 1px;
   background: rgba(31, 42, 46, 0.1);

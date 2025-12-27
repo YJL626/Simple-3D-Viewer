@@ -68,6 +68,7 @@ type ControlsState = {
   language: Language;
   viewerMode: ViewerMode;
   showAxes: boolean;
+  axesSize: number;
   showGrid: boolean;
   showGizmo: boolean;
   showStats: boolean;
@@ -93,7 +94,7 @@ const I18N = {
     dropTitle: "拖拽模型到右侧画布",
     dropHint: "支持 DRC / GLB / GLTF / OBJ / PLY / STL / USD",
     chooseFile: "选择文件",
-    loadExample: "加载 fox.glb（动画测试）",
+    loadExample: "加载 RobotExpressive.glb（动画测试）",
     loadMorphExample: "加载 suzanna.glb（形态键测试）",
     clearModel: "清空模型",
     supportedFormats: "支持格式",
@@ -113,6 +114,7 @@ const I18N = {
     },
     togglesTitle: "显示",
     axes: "轴向",
+    axesSize: "轴向大小",
     grid: "网格",
     gizmo: "方向仪",
     stats: "帧率/时间",
@@ -157,7 +159,7 @@ const I18N = {
     dropTitle: "Drop a model on the canvas",
     dropHint: "Supports DRC / GLB / GLTF / OBJ / PLY / STL / USD",
     chooseFile: "Choose file",
-    loadExample: "Load fox.glb (animation test)",
+    loadExample: "Load RobotExpressive.glb (animation test)",
     loadMorphExample: "Load suzanna.glb (morph test)",
     clearModel: "Clear model",
     supportedFormats: "Supported formats",
@@ -177,6 +179,7 @@ const I18N = {
     },
     togglesTitle: "Overlays",
     axes: "Axes",
+    axesSize: "Axes size",
     grid: "Grid",
     gizmo: "Gizmo",
     stats: "FPS/Time",
@@ -560,6 +563,7 @@ function App() {
       language: { value: "zh", options: { 中文: "zh", English: "en" } },
       viewerMode: { value: "orbit", options: { Orbit: "orbit", Presentation: "presentation", Stage: "stage" } },
       showAxes: { value: true },
+      axesSize: { value: 1.6, min: 0.4, max: 6, step: 0.1 },
       showGrid: { value: true },
       showGizmo: { value: true },
       showStats: { value: true },
@@ -788,9 +792,9 @@ function App() {
   };
 
   const handleExample = async () => {
-    const response = await fetch("/fox.glb");
+    const response = await fetch("/RobotExpressive.glb");
     const blob = await response.blob();
-    const file = new File([blob], "fox.glb", { type: "model/gltf-binary" });
+    const file = new File([blob], "RobotExpressive.glb", { type: "model/gltf-binary" });
     await loadFiles([file], "example");
   };
 
@@ -975,6 +979,20 @@ function App() {
               {copy.autoRotate}
             </label>
           </div>
+          {controls.showAxes && (
+            <label className="inline-range">
+              <span>{copy.axesSize}</span>
+              <input
+                type="range"
+                min={0.4}
+                max={6}
+                step={0.1}
+                value={controls.axesSize}
+                onChange={(event) => setControls({ axesSize: Number(event.target.value) })}
+              />
+              <span className="inline-value">{controls.axesSize.toFixed(1)}</span>
+            </label>
+          )}
           <div className="section-sep" />
           <h3>{copy.lightingTitle}</h3>
           <div className="segmented">
@@ -1188,7 +1206,7 @@ function App() {
                 fadeStrength={2}
               />
             )}
-            {controls.showAxes && <axesHelper args={[1.6]} />}
+            {controls.showAxes && <axesHelper args={[controls.axesSize]} />}
             {controls.showGizmo && (
               <GizmoHelper alignment="bottom-right" margin={[80, 80]}>
                 <GizmoViewport axisColors={["#e07a5f", "#3d7d7d", "#f2cc8f"]} labelColor="#1f2a2e" />

@@ -15,7 +15,7 @@ Offline-first 3D model viewer built with Wails + React + three.js. Drag, drop, i
 - Leva controls and bilingual UI (Chinese/English, default Chinese).
 
 ## Usage
-- Click **Load fox.glb (animation test)**.
+- Click **Load RobotExpressive.glb (animation test)**.
 - Click **Load suzanna.glb (morph test)**.
 - Or drag and drop your own model onto the canvas.
 - Use the left panel or Leva for quick toggles and lights.
@@ -31,10 +31,9 @@ Wails:
 - `wails build`
 
 ## Assets
-- `frontend/public/fox.glb` (animation test)
+- `frontend/public/RobotExpressive.glb` (animation test)
 - `frontend/public/suzanna.glb` (morph target test)
 - `frontend/public/draco` (Draco decoder files)
 
 ## Notes
 - For USD files, convert to USDZ before loading.
-
