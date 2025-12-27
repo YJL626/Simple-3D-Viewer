@@ -59,6 +59,7 @@ p {
   padding: 1.2rem;
   position: relative;
   overflow: hidden;
+  min-height: 0;
 }
 
 .app-shell.is-dragging .drop-overlay {
@@ -72,6 +73,9 @@ p {
   gap: 0.7rem;
   overflow-y: auto;
   padding-right: 0.25rem;
+  min-height: 0;
+  height: 100%;
+  overscroll-behavior: contain;
 }
 
 .panel-card {
@@ -358,6 +362,7 @@ p {
   flex-direction: column;
   gap: 1rem;
   position: relative;
+  min-height: 0;
 }
 
 .viewer-header {
