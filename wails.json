@@ -1,0 +1,20 @@
+{
+  "$schema": "https://wails.io/schemas/config.v2.json",
+  "name": "Simple3DViewer",
+  "outputfilename": "Simple3DViewer",
+  "frontend:install": "pnpm install",
+  "frontend:build": "pnpm run build",
+  "frontend:dev:watcher": "pnpm run dev",
+  "frontend:dev:serverUrl": "auto",
+  "author": {
+    "name": "Eugene",
+    "email": "yjl2020@foxmail.com"
+  },
+  "info": {
+    "companyName": "Eugene",
+    "productName": "Simple 3D Viewer",
+    "productVersion": "1.0.0",
+    "copyright": "Copyright © 2025 Eugene",
+    "comments": "A simple 3D model viewer application"
+  }
+}

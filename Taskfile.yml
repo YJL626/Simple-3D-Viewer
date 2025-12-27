@@ -1,0 +1,26 @@
+# https://taskfile.dev
+
+version: "3"
+
+
+tasks:
+  default:
+    desc: Default task
+    cmds:
+      - wails dev -s
+  lint:
+    desc: Lint code
+    cmds:
+      - go build .
+      - go vet .
+      - cd frontend && pnpm exec tsgo --noEmit
+    silent: true
+
+  build:
+    desc: Build release version (frameless + fullscreen)
+    cmds:
+      - wails build -tags release
+  dev:
+    desc: dev
+    cmds:
+      - wails dev -s
