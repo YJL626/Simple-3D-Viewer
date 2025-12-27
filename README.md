@@ -1,6 +1,8 @@
 # Simple 3D Viewer
 
 Offline-first 3D model viewer built with Wails + React + three.js. Drag, drop, inspect, and validate animation or morph targets quickly.
+## Screenshots
+![Example](./example.gif)
 
 ## Highlights
 - Offline-ready (bundled sample models + Draco decoders).
@@ -36,5 +38,3 @@ Wails:
 ## Notes
 - For USD files, convert to USDZ before loading.
 
-## Screenshots
-![Example](./example.gif)
