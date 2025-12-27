@@ -37,4 +37,4 @@ Wails:
 - For USD files, convert to USDZ before loading.
 
 ## Screenshots
-Add screenshots or gifs here for GitHub.
+![Example](./example.gif)
