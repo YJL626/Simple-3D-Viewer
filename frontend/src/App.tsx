@@ -264,6 +264,12 @@ const VIEWER_MODES: { id: ViewerMode; labelKey: keyof (typeof I18N)["zh"]["viewe
 
 const FORMAT_PRIORITY = ["gltf", "glb", "usdz", "usd", "drc", "obj", "ply", "stl"];
 
+function getSystemLanguage(): Language {
+  if (typeof navigator === "undefined") return "en";
+  const primary = (navigator.language || navigator.languages?.[0] || "").toLowerCase();
+  return primary.startsWith("zh") ? "zh" : "en";
+}
+
 function getExtension(filename: string) {
   const parts = filename.split(".");
   if (parts.length < 2) return "";
@@ -664,6 +670,7 @@ function App() {
   const [morphTargets, setMorphTargets] = useState<MorphTargetInfo[]>([]);
   const [morphValues, setMorphValues] = useState<Record<string, number>>({});
   const [levaPosition, setLevaPosition] = useState({ x: 24, y: 24 });
+  const defaultLanguage = useMemo(() => getSystemLanguage(), []);
 
   const animationOptions = useMemo(() => {
     const options: Record<string, string> = {
@@ -679,7 +686,7 @@ function App() {
 
   const [controls, setControls] = useControls(
     () => ({
-      language: { value: "zh", options: { 中文: "zh", English: "en" } },
+      language: { value: defaultLanguage, options: { 中文: "zh", English: "en" } },
       viewerMode: { value: "orbit", options: { Orbit: "orbit", Presentation: "presentation", Stage: "stage" } },
       showAxes: { value: true },
       axesSize: { value: 1.6, min: 0.4, max: 6, step: 0.1 },
@@ -694,7 +701,7 @@ function App() {
       animationPlay: { value: true },
       animationSpeed: { value: 1, min: 0.2, max: 2.5, step: 0.1 },
     }),
-    [animationOptions]
+    [animationOptions, defaultLanguage]
   ) as unknown as [ControlsState, (values: Partial<ControlsState>) => void];
 
   const language = controls.language;
