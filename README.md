@@ -12,6 +12,7 @@ Offline-first 3D model viewer built with Wails + React + three.js. Drag, drop, i
 - Lighting presets + viewer modes (Orbit, Presentation, Stage).
 - Animation playback + morph targets (shape keys).
 - FPS + frame time overlay.
+- Custom properties viewer for GLTF/GLB extras with copy-to-clipboard JSON.
 - Leva controls and bilingual UI (Chinese/English, default Chinese).
 
 ## Usage
@@ -37,3 +38,4 @@ Wails:
 
 ## Notes
 - For USD files, convert to USDZ before loading.
+- Custom properties are shown only for GLTF/GLB models (asset/root/scene/nodes/materials extras).
