@@ -20,6 +20,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { DRACOLoader } from "three/examples/jsm/loaders/DRACOLoader.js";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import type { GLTF } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { OBJLoader } from "three/examples/jsm/loaders/OBJLoader.js";
 import { PLYLoader } from "three/examples/jsm/loaders/PLYLoader.js";
 import { STLLoader } from "three/examples/jsm/loaders/STLLoader.js";
@@ -44,6 +45,7 @@ type ModelState = {
   name: string;
   format: string;
   stats: ModelStats;
+  customProperties: CustomPropertySection[];
   source: "local" | "example";
 };
 
@@ -62,6 +64,18 @@ type MorphBinding = {
 type MorphTargetInfo = {
   name: string;
   bindings: MorphBinding[];
+};
+
+type CustomPropertySectionId = "asset" | "root" | "scene" | "nodes" | "materials";
+
+type CustomPropertySection = {
+  id: CustomPropertySectionId;
+  value: unknown;
+};
+
+type NamedCustomData = {
+  name: string;
+  data: unknown;
 };
 
 type ControlsState = {
@@ -148,6 +162,16 @@ const I18N = {
     morphNone: "无形态键",
     morphQuick: "快速切换",
     morphStrength: "强度",
+    customProps: "自定义属性",
+    customPropsEmpty: "未发现自定义属性",
+    customPropsUnsupported: "仅 GLTF/GLB 支持自定义属性显示",
+    customPropsSections: {
+      asset: "资产 (asset.extras)",
+      root: "根级 (extras)",
+      scene: "场景",
+      nodes: "节点",
+      materials: "材质",
+    },
   },
   en: {
     title: "Simple 3D Viewer",
@@ -213,6 +237,16 @@ const I18N = {
     morphNone: "No morph targets",
     morphQuick: "Quick switch",
     morphStrength: "Strength",
+    customProps: "Custom properties",
+    customPropsEmpty: "No custom properties found",
+    customPropsUnsupported: "Custom properties are available for GLTF/GLB only",
+    customPropsSections: {
+      asset: "Asset (asset.extras)",
+      root: "Root (extras)",
+      scene: "Scene",
+      nodes: "Nodes",
+      materials: "Materials",
+    },
   },
 } as const;
 const LIGHT_PRESETS: { id: LightPreset; labelKey: keyof (typeof I18N)["zh"]["lightPresets"] }[] = [
@@ -373,6 +407,91 @@ function collectMorphTargets(object: THREE.Object3D) {
 
   return Array.from(map.entries()).map(([name, bindings]) => ({ name, bindings }));
 }
+
+type GltfJson = {
+  extras?: unknown;
+  asset?: { extras?: unknown };
+};
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function stripGltfExtensions(value: unknown) {
+  if (!isRecord(value)) return value;
+  const { gltfExtensions, ...rest } = value;
+  return rest;
+}
+
+function hasCustomValue(value: unknown) {
+  if (value === null || value === undefined) return false;
+  if (Array.isArray(value)) return value.length > 0;
+  if (isRecord(value)) return Object.keys(value).length > 0;
+  return true;
+}
+
+function collectGltfCustomSections(gltf: GLTF) {
+  const sections: CustomPropertySection[] = [];
+  const json = (gltf as GLTF & { parser?: { json?: GltfJson } }).parser?.json;
+
+  const assetExtras =
+    (gltf.asset as { extras?: unknown } | undefined)?.extras ??
+    json?.asset?.extras;
+  if (hasCustomValue(assetExtras)) {
+    sections.push({ id: "asset", value: assetExtras });
+  }
+
+  const rootExtras = json?.extras;
+  if (hasCustomValue(rootExtras)) {
+    sections.push({ id: "root", value: rootExtras });
+  }
+
+  const sceneExtras = stripGltfExtensions(gltf.scene?.userData);
+  if (hasCustomValue(sceneExtras)) {
+    sections.push({ id: "scene", value: sceneExtras });
+  }
+
+  const nodeEntries: NamedCustomData[] = [];
+  gltf.scene?.traverse((child) => {
+    if (child === gltf.scene) return;
+    const data = stripGltfExtensions(child.userData);
+    if (!hasCustomValue(data)) return;
+    nodeEntries.push({ name: child.name || child.uuid, data });
+  });
+  if (nodeEntries.length) {
+    sections.push({ id: "nodes", value: nodeEntries });
+  }
+
+  const materialEntries: NamedCustomData[] = [];
+  const seenMaterials = new Set<string>();
+  gltf.scene?.traverse((child) => {
+    if (!(child as THREE.Mesh).isMesh) return;
+    const mesh = child as THREE.Mesh;
+    const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+    materials.forEach((material) => {
+      if (!material) return;
+      const data = stripGltfExtensions(material.userData);
+      if (!hasCustomValue(data)) return;
+      if (seenMaterials.has(material.uuid)) return;
+      seenMaterials.add(material.uuid);
+      materialEntries.push({ name: material.name || material.uuid, data });
+    });
+  });
+  if (materialEntries.length) {
+    sections.push({ id: "materials", value: materialEntries });
+  }
+
+  return sections;
+}
+
+function formatCustomValue(value: unknown) {
+  try {
+    return JSON.stringify(value, null, 2);
+  } catch {
+    return String(value);
+  }
+}
+
 function PerformanceProbe({ enabled, onUpdate }: { enabled: boolean; onUpdate: (stats: PerformanceStats) => void }) {
   const frameCount = useRef(0);
   const timeAccum = useRef(0);
@@ -689,12 +808,14 @@ function App() {
 
         let loadedObject: THREE.Object3D;
         let animations: THREE.AnimationClip[] = [];
+        let customProperties: CustomPropertySection[] = [];
         if (extension === "glb" || extension === "gltf") {
           const loader = new GLTFLoader(manager);
           loader.setDRACOLoader(dracoLoader);
           const gltf = await loadAsync(loader, getUrl(mainFile));
           loadedObject = gltf.scene;
           animations = gltf.animations ?? [];
+          customProperties = collectGltfCustomSections(gltf);
           revokeAll();
         } else if (extension === "obj") {
           const loader = new OBJLoader(manager);
@@ -750,6 +871,7 @@ function App() {
           name: mainFile.name,
           format: extension,
           stats,
+          customProperties,
           source,
         });
         setFitSignal((prev) => prev + 1);
@@ -866,6 +988,8 @@ function App() {
   const animationOptionsList = animationList.map((clip) => clip.name).filter(Boolean);
   const hasMorphTargets = morphTargets.length > 0;
   const isMorphEmpty = morphTargets.every((target) => (morphValues[target.name] ?? 0) <= 0.001);
+  const isGltf = model?.format === "gltf" || model?.format === "glb";
+  const customSections = model?.customProperties ?? [];
 
   const content = model ? (
     <AnimatedModel
@@ -1130,6 +1254,25 @@ function App() {
             </div>
           </div>
           <div className={`performance-hint ${performanceHint.level}`}>{performanceHint.message}</div>
+        </div>
+        <div className="panel-card">
+          <h2>{copy.customProps}</h2>
+          {!model ? (
+            <p className="muted">{copy.noModel}</p>
+          ) : !isGltf ? (
+            <p className="muted">{copy.customPropsUnsupported}</p>
+          ) : customSections.length === 0 ? (
+            <p className="muted">{copy.customPropsEmpty}</p>
+          ) : (
+            <div className="custom-props">
+              {customSections.map((section) => (
+                <div key={section.id} className="custom-props__section">
+                  <div className="custom-props__label">{copy.customPropsSections[section.id]}</div>
+                  <pre className="custom-props__value">{formatCustomValue(section.value)}</pre>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </aside>
       <main className="viewer-panel">
