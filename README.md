@@ -15,7 +15,6 @@ Offline-first 3D model viewer built with Wails + React + three.js. Drag, drop, i
 - Animation playback + morph targets (shape keys).
 - FPS + frame time overlay.
 - Custom properties viewer for GLTF/GLB extras with copy-to-clipboard JSON.
-- Leva controls and bilingual UI (Chinese/English, default Chinese).
 
 ## Usage
 - Click **Load RobotExpressive.glb (animation test)**.

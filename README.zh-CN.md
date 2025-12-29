@@ -16,7 +16,6 @@
 - 动画播放 + 形态键（shape keys）。
 - FPS + 帧时间叠加。
 - 自定义属性查看（GLTF/GLB 的 extras），支持复制 JSON。
-- Leva 控制面板与中英文双语（默认中文）。
 
 ## 使用
 - 点击 **加载 RobotExpressive.glb（动画测试）**。
