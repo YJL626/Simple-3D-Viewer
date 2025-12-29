@@ -2,7 +2,7 @@
 
 [English](README.md) | [中文](README.zh-CN.md)
 
-Offline-first 3D model viewer built with Wails + React + three.js. Drag, drop, inspect, and validate animation or morph targets quickly.
+Portable single-file offline 3D viewer (Wails + React + three.js) for quick drag-and-drop inspection of animations and morph targets.
 ## Screenshots
 ![Example](./example.gif)
 

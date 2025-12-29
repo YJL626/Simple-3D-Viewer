@@ -2,7 +2,7 @@
 
 [English](README.md) | [中文](README.zh-CN.md)
 
-离线优先的 3D 模型查看器，基于 Wails + React + three.js 构建。拖拽加载、快速检查与验证动画或形态键。
+离线优先的单文件绿色版 3D 模型查看器，支持拖拽加载、快速检查与验证动画或形态键。
 
 ## 截图
 ![示例](./example.gif)
