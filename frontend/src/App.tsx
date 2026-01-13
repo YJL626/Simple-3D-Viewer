@@ -33,6 +33,7 @@ const SUPPORTED_FORMAT_LABEL =
 
 
 const LIGHT_PRESETS: { id: LightPreset; labelKey: keyof (typeof I18N)["zh"]["lightPresets"] }[] = [
+  { id: "none", labelKey: "none" },
   { id: "threePoint", labelKey: "threePoint" },
   { id: "front", labelKey: "front" },
   { id: "rim", labelKey: "rim" },
@@ -308,7 +309,16 @@ function App() {
       showGizmo: { value: true },
       showStats: { value: true },
       autoRotate: { value: false },
-      lightPreset: { value: "threePoint", options: { ThreePoint: "threePoint", Front: "front", Rim: "rim", Top: "top" } },
+      lightPreset: {
+        value: "threePoint",
+        options: {
+          "No light": "none",
+          ThreePoint: "threePoint",
+          Front: "front",
+          Rim: "rim",
+          Top: "top",
+        },
+      },
       lightIntensity: { value: 1.2, min: 0.2, max: 3, step: 0.1 },
       background: { value: "#0c1016" },
       animationClip: { value: "none", options: animationOptions },

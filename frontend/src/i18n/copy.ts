@@ -22,6 +22,7 @@ export const I18N = {
     },
     lightingTitle: "灯光视角",
     lightPresets: {
+      none: "无光照",
       threePoint: "三点布光",
       front: "正面光",
       rim: "轮廓光",
@@ -98,6 +99,7 @@ export const I18N = {
     },
     lightingTitle: "Lighting",
     lightPresets: {
+      none: "No light",
       threePoint: "Three-point",
       front: "Front",
       rim: "Rim",

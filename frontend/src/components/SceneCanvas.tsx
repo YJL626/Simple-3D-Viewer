@@ -222,6 +222,7 @@ export function SceneCanvas({
   fitSignal,
   onPerfUpdate,
 }: SceneCanvasProps) {
+  const isUnlit = controls.lightPreset === "none";
   const content = model ? (
     <AnimatedModel
       key={model.name}
@@ -249,8 +250,8 @@ export function SceneCanvas({
           <Stage
             key={model?.name ?? "empty"}
             environment={null}
-            intensity={controls.lightIntensity}
-            shadows={{ type: "contact", opacity: 0.6, blur: 2, far: 12 }}
+            intensity={isUnlit ? 0 : controls.lightIntensity}
+            shadows={isUnlit ? false : { type: "contact", opacity: 0.6, blur: 2, far: 12 }}
             adjustCamera={false}
             center={{ cacheKey: model?.name ?? "empty" }}
           >
@@ -259,7 +260,9 @@ export function SceneCanvas({
         </Bounds>
       ) : (
         <>
-          <LightRig preset={controls.lightPreset} intensity={controls.lightIntensity} />
+          {!isUnlit && (
+            <LightRig preset={controls.lightPreset} intensity={controls.lightIntensity} />
+          )}
           <Bounds fit clip margin={1.2}>
             <FitToBounds object={model?.object ?? null} signal={fitSignal} />
             <Center>
@@ -278,13 +281,15 @@ export function SceneCanvas({
               )}
             </Center>
           </Bounds>
-          <ContactShadows
-            position={[0, groundOffset, 0]}
-            opacity={0.55}
-            scale={12}
-            blur={2.4}
-            far={12}
-          />
+          {!isUnlit && (
+            <ContactShadows
+              position={[0, groundOffset, 0]}
+              opacity={0.55}
+              scale={12}
+              blur={2.4}
+              far={12}
+            />
+          )}
         </>
       )}
 

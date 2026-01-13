@@ -2,7 +2,7 @@ import type * as THREE from "three";
 
 export type Language = "zh" | "en";
 export type ViewerMode = "orbit" | "presentation" | "stage";
-export type LightPreset = "threePoint" | "front" | "rim" | "top";
+export type LightPreset = "none" | "threePoint" | "front" | "rim" | "top";
 
 export type ModelStats = {
   triangles: number;
