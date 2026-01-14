@@ -1,4 +1,4 @@
-import { Canvas, useFrame, useThree } from "@react-three/fiber";
+import { Canvas, addAfterEffect, addEffect, useFrame, useThree } from "@react-three/fiber";
 import {
   Bounds,
   Center,
@@ -23,6 +23,39 @@ import type {
   PerformanceStats,
 } from "../lib/viewerTypes";
 
+type GpuQuery = WebGLQuery | object;
+
+type WebGLTimerQueryExt = {
+  TIME_ELAPSED_EXT: number;
+  QUERY_RESULT_AVAILABLE_EXT: number;
+  QUERY_RESULT_EXT: number;
+  GPU_DISJOINT_EXT: number;
+  createQueryEXT: () => GpuQuery | null;
+  deleteQueryEXT: (query: GpuQuery) => void;
+  beginQueryEXT: (target: number, query: GpuQuery) => void;
+  endQueryEXT: (target: number) => void;
+  getQueryObjectEXT: (query: GpuQuery, pname: number) => number | boolean;
+};
+
+type WebGLTimerQueryExtWebGL2 = {
+  TIME_ELAPSED_EXT: number;
+  GPU_DISJOINT_EXT: number;
+};
+
+type GpuTimer =
+  | {
+      kind: "webgl2";
+      gl: WebGL2RenderingContext;
+      ext: WebGLTimerQueryExtWebGL2;
+      pending: WebGLQuery[];
+    }
+  | {
+      kind: "webgl1";
+      gl: WebGLRenderingContext;
+      ext: WebGLTimerQueryExt;
+      pending: GpuQuery[];
+    };
+
 type SceneCanvasProps = {
   model: ModelState | null;
   controls: ControlsState;
@@ -40,7 +73,159 @@ function PerformanceProbe({
   const frameCount = useRef(0);
   const timeAccum = useRef(0);
   const lastUpdate = useRef(performance.now());
+  const gpuMs = useRef<number | null>(null);
+  const gpuTimer = useRef<GpuTimer | null>(null);
+  const activeQuery = useRef<GpuQuery | null>(null);
   const { gl } = useThree();
+
+  const beginGpuQuery = () => {
+    const timer = gpuTimer.current;
+    if (!timer || activeQuery.current) return;
+    if (timer.kind === "webgl2") {
+      const query = timer.gl.createQuery();
+      if (!query) return;
+      timer.gl.beginQuery(timer.ext.TIME_ELAPSED_EXT, query);
+      activeQuery.current = query;
+      return;
+    }
+    const query = timer.ext.createQueryEXT();
+    if (!query) return;
+    timer.ext.beginQueryEXT(timer.ext.TIME_ELAPSED_EXT, query);
+    activeQuery.current = query;
+  };
+
+  const endGpuQuery = () => {
+    const timer = gpuTimer.current;
+    const query = activeQuery.current;
+    if (!timer || !query) return;
+    if (timer.kind === "webgl2") {
+      timer.gl.endQuery(timer.ext.TIME_ELAPSED_EXT);
+      timer.pending.push(query as WebGLQuery);
+      activeQuery.current = null;
+      return;
+    }
+    timer.ext.endQueryEXT(timer.ext.TIME_ELAPSED_EXT);
+    timer.pending.push(query);
+    activeQuery.current = null;
+  };
+
+  const resolveGpuQueries = () => {
+    const timer = gpuTimer.current;
+    if (!timer || timer.pending.length === 0) return;
+    if (timer.kind === "webgl2") {
+      const disjoint = timer.gl.getParameter(timer.ext.GPU_DISJOINT_EXT) as boolean;
+      while (timer.pending.length) {
+        const query = timer.pending[0];
+        const available = timer.gl.getQueryParameter(
+          query,
+          timer.gl.QUERY_RESULT_AVAILABLE
+        ) as boolean;
+        if (!available) break;
+        timer.pending.shift();
+        if (!disjoint) {
+          const timeNs = timer.gl.getQueryParameter(
+            query,
+            timer.gl.QUERY_RESULT
+          ) as number;
+          gpuMs.current = timeNs / 1e6;
+        }
+        timer.gl.deleteQuery(query);
+      }
+      return;
+    }
+    const disjoint = timer.gl.getParameter(timer.ext.GPU_DISJOINT_EXT) as boolean;
+    while (timer.pending.length) {
+      const query = timer.pending[0];
+      const available = timer.ext.getQueryObjectEXT(
+        query,
+        timer.ext.QUERY_RESULT_AVAILABLE_EXT
+      ) as boolean;
+      if (!available) break;
+      timer.pending.shift();
+      if (!disjoint) {
+        const timeNs = timer.ext.getQueryObjectEXT(
+          query,
+          timer.ext.QUERY_RESULT_EXT
+        ) as number;
+        gpuMs.current = timeNs / 1e6;
+      }
+      timer.ext.deleteQueryEXT(query);
+    }
+  };
+
+  const clearGpuQueries = () => {
+    const timer = gpuTimer.current;
+    const query = activeQuery.current;
+    if (timer && query) {
+      if (timer.kind === "webgl2") {
+        timer.gl.endQuery(timer.ext.TIME_ELAPSED_EXT);
+        timer.gl.deleteQuery(query as WebGLQuery);
+      } else {
+        timer.ext.endQueryEXT(timer.ext.TIME_ELAPSED_EXT);
+        timer.ext.deleteQueryEXT(query);
+      }
+    }
+    activeQuery.current = null;
+    if (!timer) return;
+    if (timer.kind === "webgl2") {
+      timer.pending.forEach((pending) => timer.gl.deleteQuery(pending));
+    } else {
+      timer.pending.forEach((pending) => timer.ext.deleteQueryEXT(pending));
+    }
+    timer.pending = [];
+  };
+
+  useEffect(() => {
+    const context = gl.getContext() as WebGLRenderingContext | WebGL2RenderingContext;
+    let timer: GpuTimer | null = null;
+    if (context && "createQuery" in context) {
+      const ext = context.getExtension(
+        "EXT_disjoint_timer_query_webgl2"
+      ) as WebGLTimerQueryExtWebGL2 | null;
+      if (ext) {
+        timer = {
+          kind: "webgl2",
+          gl: context as WebGL2RenderingContext,
+          ext,
+          pending: [],
+        };
+      }
+    } else if (context) {
+      const ext = context.getExtension(
+        "EXT_disjoint_timer_query"
+      ) as WebGLTimerQueryExt | null;
+      if (ext) {
+        timer = {
+          kind: "webgl1",
+          gl: context as WebGLRenderingContext,
+          ext,
+          pending: [],
+        };
+      }
+    }
+    gpuTimer.current = timer;
+    gpuMs.current = null;
+    return () => {
+      clearGpuQueries();
+      gpuTimer.current = null;
+    };
+  }, [gl]);
+
+  useEffect(() => {
+    if (!enabled) return;
+    const removeBefore = addEffect(() => {
+      beginGpuQuery();
+    });
+    const removeAfter = addAfterEffect(() => {
+      endGpuQuery();
+      resolveGpuQueries();
+    });
+    return () => {
+      removeBefore();
+      removeAfter();
+      clearGpuQueries();
+    };
+  }, [enabled]);
 
   useFrame((_state, delta) => {
     if (!enabled) return;
@@ -56,6 +241,7 @@ function PerformanceProbe({
     onUpdate({
       fps,
       frameMs: avgDelta * 1000,
+      gpuMs: gpuMs.current,
       drawCalls: gl.info.render.calls,
       triangles: gl.info.render.triangles,
     });

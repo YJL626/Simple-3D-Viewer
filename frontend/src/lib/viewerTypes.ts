@@ -37,6 +37,7 @@ export type ModelState = {
 export type PerformanceStats = {
   fps: number;
   frameMs: number;
+  gpuMs: number | null;
   drawCalls: number;
   triangles: number;
 };

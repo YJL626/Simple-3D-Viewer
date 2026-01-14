@@ -279,7 +279,13 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [perfStats, setPerfStats] = useState<PerformanceStats>({ fps: 0, frameMs: 0, drawCalls: 0, triangles: 0 });
+  const [perfStats, setPerfStats] = useState<PerformanceStats>({
+    fps: 0,
+    frameMs: 0,
+    gpuMs: null,
+    drawCalls: 0,
+    triangles: 0,
+  });
   const [fitSignal, setFitSignal] = useState(0);
   const [isOnline, setIsOnline] = useState(typeof navigator !== "undefined" ? navigator.onLine : true);
   const [morphTargets, setMorphTargets] = useState<MorphTargetInfo[]>([]);

@@ -38,7 +38,12 @@ export function ViewerPanel({
           <h2>{copy.viewerTitle}</h2>
           <p className="muted">
             {copy.perfFps}: {formatNumber.format(perfStats.fps)} {"\u00b7"}{" "}
-            {copy.perfFrame}: {formatNumber.format(perfStats.frameMs)} ms
+            {copy.perfFrame}: {formatNumber.format(perfStats.frameMs)} ms {"\u00b7"}{" "}
+            {copy.perfGpu}:{" "}
+            {perfStats.gpuMs === null
+              ? "--"
+              : formatNumber.format(perfStats.gpuMs)}{" "}
+            ms
           </p>
         </div>
         <div className="viewer-actions">
