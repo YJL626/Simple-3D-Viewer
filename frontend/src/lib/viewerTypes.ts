@@ -2,7 +2,9 @@ import type * as THREE from "three";
 
 export type Language = "zh" | "en";
 export type ViewerMode = "orbit" | "presentation" | "stage";
+export type ViewerEngine = "cesium" | "three";
 export type LightPreset = "none" | "threePoint" | "front" | "rim" | "top";
+export type SatelliteMode = "fixed" | "tle";
 
 export type ModelStats = {
   triangles: number;
@@ -32,6 +34,7 @@ export type ModelState = {
   stats: ModelStats;
   customProperties: CustomPropertySection[];
   source: "local" | "example";
+  cesiumUrl: string | null;
 };
 
 export type PerformanceStats = {
@@ -64,6 +67,7 @@ export type NamedCustomData = {
 
 export type ControlsState = {
   language: Language;
+  renderEngine: ViewerEngine;
   viewerMode: ViewerMode;
   showAxes: boolean;
   axesSize: number;
@@ -77,4 +81,13 @@ export type ControlsState = {
   animationClip: string;
   animationPlay: boolean;
   animationSpeed: number;
+  satelliteMode: SatelliteMode;
+  rightAscensionHours: number;
+  declinationDeg: number;
+  altitudeKm: number;
+  tleLine1: string;
+  tleLine2: string;
+  timeMultiplier: number;
+  trackSatellite: boolean;
+  showOrbitPath: boolean;
 };

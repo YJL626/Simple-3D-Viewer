@@ -7,12 +7,31 @@ import type {
   ModelState,
   MorphTargetInfo,
   PerformanceHint,
+  SatelliteMode,
+  ViewerEngine,
   ViewerMode,
 } from "../lib/viewerTypes";
 
 type ViewerModeOption = {
   id: ViewerMode;
   labelKey: keyof I18nCopy["viewerModes"];
+};
+
+type ViewerEngineOption = {
+  id: ViewerEngine;
+  labelKey: keyof I18nCopy["viewerEngines"];
+};
+
+type SatelliteModeOption = {
+  id: SatelliteMode;
+  labelKey: keyof I18nCopy["satelliteModes"];
+};
+
+type TlePresetOption = {
+  id: "leo" | "meo" | "geo";
+  labelKey: keyof I18nCopy["tlePresets"];
+  line1: string;
+  line2: string;
 };
 
 type LightPresetOption = {
@@ -27,7 +46,10 @@ type SidePanelProps = {
   error: string | null;
   controls: ControlsState;
   onSetControls: (values: Partial<ControlsState>) => void;
+  viewerEngines: ViewerEngineOption[];
   viewerModes: ViewerModeOption[];
+  satelliteModes: SatelliteModeOption[];
+  tlePresets: TlePresetOption[];
   lightPresets: LightPresetOption[];
   onChooseFile: (event: ChangeEvent<HTMLInputElement>) => void;
   onLoadExample: () => void;
@@ -91,7 +113,10 @@ export function SidePanel({
   error,
   controls,
   onSetControls,
+  viewerEngines,
   viewerModes,
+  satelliteModes,
+  tlePresets,
   lightPresets,
   onChooseFile,
   onLoadExample,
@@ -115,6 +140,7 @@ export function SidePanel({
   const isMorphEmpty = morphTargets.every(
     (target) => (morphValues[target.name] ?? 0) <= 0.001
   );
+  const isCesium = controls.renderEngine === "cesium";
   const isGltf = model?.format === "gltf" || model?.format === "glb";
   const customSections = model?.customProperties ?? [];
 
@@ -169,104 +195,255 @@ export function SidePanel({
 
       <div className="panel-card">
         <h2>{copy.viewerTitle}</h2>
+        <h3>{copy.renderEngine}</h3>
         <div className="segmented">
-          {viewerModes.map((mode) => (
+          {viewerEngines.map((engine) => (
             <button
-              key={mode.id}
+              key={engine.id}
               type="button"
               className={`segmented__btn${
-                controls.viewerMode === mode.id ? " active" : ""
+                controls.renderEngine === engine.id ? " active" : ""
               }`}
-              onClick={() => onSetControls({ viewerMode: mode.id })}
+              onClick={() => onSetControls({ renderEngine: engine.id })}
             >
-              {copy.viewerModes[mode.labelKey]}
+              {copy.viewerEngines[engine.labelKey]}
             </button>
           ))}
         </div>
-        <div className="toggle-grid">
-          <label>
-            <input
-              type="checkbox"
-              checked={controls.showAxes}
-              onChange={(event) =>
-                onSetControls({ showAxes: event.target.checked })
-              }
-            />
-            {copy.axes}
-          </label>
-          <label>
-            <input
-              type="checkbox"
-              checked={controls.showGrid}
-              onChange={(event) =>
-                onSetControls({ showGrid: event.target.checked })
-              }
-            />
-            {copy.grid}
-          </label>
-          <label>
-            <input
-              type="checkbox"
-              checked={controls.showGizmo}
-              onChange={(event) =>
-                onSetControls({ showGizmo: event.target.checked })
-              }
-            />
-            {copy.gizmo}
-          </label>
-          <label>
-            <input
-              type="checkbox"
-              checked={controls.showStats}
-              onChange={(event) =>
-                onSetControls({ showStats: event.target.checked })
-              }
-            />
-            {copy.stats}
-          </label>
-          <label>
-            <input
-              type="checkbox"
-              checked={controls.autoRotate}
-              onChange={(event) =>
-                onSetControls({ autoRotate: event.target.checked })
-              }
-            />
-            {copy.autoRotate}
-          </label>
-        </div>
-        {controls.showAxes && (
-          <label className="inline-range">
-            <span>{copy.axesSize}</span>
-            <input
-              type="range"
-              min={0.4}
-              max={6}
-              step={0.1}
-              value={controls.axesSize}
-              onChange={(event) =>
-                onSetControls({ axesSize: Number(event.target.value) })
-              }
-            />
-            <span className="inline-value">{controls.axesSize.toFixed(1)}</span>
-          </label>
+
+        {isCesium ? (
+          <>
+            <div className="section-sep" />
+            <h3>{copy.satelliteTitle}</h3>
+            <div className="segmented">
+              {satelliteModes.map((mode) => (
+                <button
+                  key={mode.id}
+                  type="button"
+                  className={`segmented__btn${
+                    controls.satelliteMode === mode.id ? " active" : ""
+                  }`}
+                  onClick={() => onSetControls({ satelliteMode: mode.id })}
+                >
+                  {copy.satelliteModes[mode.labelKey]}
+                </button>
+              ))}
+            </div>
+
+            {controls.satelliteMode === "fixed" ? (
+              <div className="field-grid">
+                <label className="field">
+                  <span>{copy.rightAscension}</span>
+                  <input
+                    type="number"
+                    min={0}
+                    max={24}
+                    step={0.1}
+                    value={controls.rightAscensionHours}
+                    onChange={(event) =>
+                      onSetControls({
+                        rightAscensionHours: Number(event.target.value),
+                      })
+                    }
+                  />
+                </label>
+                <label className="field">
+                  <span>{copy.declination}</span>
+                  <input
+                    type="number"
+                    min={-90}
+                    max={90}
+                    step={0.1}
+                    value={controls.declinationDeg}
+                    onChange={(event) =>
+                      onSetControls({
+                        declinationDeg: Number(event.target.value),
+                      })
+                    }
+                  />
+                </label>
+                <label className="field">
+                  <span>{copy.altitudeKm}</span>
+                  <input
+                    type="number"
+                    min={120}
+                    max={80_000}
+                    step={10}
+                    value={controls.altitudeKm}
+                    onChange={(event) =>
+                      onSetControls({
+                        altitudeKm: Number(event.target.value),
+                      })
+                    }
+                  />
+                </label>
+              </div>
+            ) : (
+              <div className="field-grid">
+                <div className="chip-group">
+                  {tlePresets.map((preset) => {
+                    const active =
+                      controls.tleLine1.trim() === preset.line1 &&
+                      controls.tleLine2.trim() === preset.line2;
+                    return (
+                      <button
+                        key={preset.id}
+                        type="button"
+                        className={`chip${active ? " active" : ""}`}
+                        onClick={() =>
+                          onSetControls({
+                            tleLine1: preset.line1,
+                            tleLine2: preset.line2,
+                          })
+                        }
+                      >
+                        {copy.tlePresets[preset.labelKey]}
+                      </button>
+                    );
+                  })}
+                </div>
+                <label className="field field--textarea">
+                  <span>{copy.tleLine1}</span>
+                  <textarea
+                    rows={2}
+                    value={controls.tleLine1}
+                    onChange={(event) =>
+                      onSetControls({ tleLine1: event.target.value })
+                    }
+                  />
+                </label>
+                <label className="field field--textarea">
+                  <span>{copy.tleLine2}</span>
+                  <textarea
+                    rows={2}
+                    value={controls.tleLine2}
+                    onChange={(event) =>
+                      onSetControls({ tleLine2: event.target.value })
+                    }
+                  />
+                </label>
+              </div>
+            )}
+
+            <label className="inline-range">
+              <span>{copy.timeMultiplier}</span>
+              <input
+                type="range"
+                min={0.1}
+                max={200}
+                step={0.1}
+                value={controls.timeMultiplier}
+                onChange={(event) =>
+                  onSetControls({ timeMultiplier: Number(event.target.value) })
+                }
+              />
+              <span className="inline-value">×{controls.timeMultiplier.toFixed(1)}</span>
+            </label>
+          </>
+        ) : (
+          <>
+            <div className="section-sep" />
+            <h3>{copy.viewerMode}</h3>
+            <div className="segmented">
+              {viewerModes.map((mode) => (
+                <button
+                  key={mode.id}
+                  type="button"
+                  className={`segmented__btn${
+                    controls.viewerMode === mode.id ? " active" : ""
+                  }`}
+                  onClick={() => onSetControls({ viewerMode: mode.id })}
+                >
+                  {copy.viewerModes[mode.labelKey]}
+                </button>
+              ))}
+            </div>
+            <div className="toggle-grid">
+              <label>
+                <input
+                  type="checkbox"
+                  checked={controls.showAxes}
+                  onChange={(event) =>
+                    onSetControls({ showAxes: event.target.checked })
+                  }
+                />
+                {copy.axes}
+              </label>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={controls.showGrid}
+                  onChange={(event) =>
+                    onSetControls({ showGrid: event.target.checked })
+                  }
+                />
+                {copy.grid}
+              </label>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={controls.showGizmo}
+                  onChange={(event) =>
+                    onSetControls({ showGizmo: event.target.checked })
+                  }
+                />
+                {copy.gizmo}
+              </label>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={controls.showStats}
+                  onChange={(event) =>
+                    onSetControls({ showStats: event.target.checked })
+                  }
+                />
+                {copy.stats}
+              </label>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={controls.autoRotate}
+                  onChange={(event) =>
+                    onSetControls({ autoRotate: event.target.checked })
+                  }
+                />
+                {copy.autoRotate}
+              </label>
+            </div>
+            {controls.showAxes && (
+              <label className="inline-range">
+                <span>{copy.axesSize}</span>
+                <input
+                  type="range"
+                  min={0.4}
+                  max={6}
+                  step={0.1}
+                  value={controls.axesSize}
+                  onChange={(event) =>
+                    onSetControls({ axesSize: Number(event.target.value) })
+                  }
+                />
+                <span className="inline-value">{controls.axesSize.toFixed(1)}</span>
+              </label>
+            )}
+            <div className="section-sep" />
+            <h3>{copy.lightingTitle}</h3>
+            <div className="segmented">
+              {lightPresets.map((preset) => (
+                <button
+                  key={preset.id}
+                  type="button"
+                  className={`segmented__btn${
+                    controls.lightPreset === preset.id ? " active" : ""
+                  }`}
+                  onClick={() => onSetControls({ lightPreset: preset.id })}
+                >
+                  {copy.lightPresets[preset.labelKey]}
+                </button>
+              ))}
+            </div>
+          </>
         )}
-        <div className="section-sep" />
-        <h3>{copy.lightingTitle}</h3>
-        <div className="segmented">
-          {lightPresets.map((preset) => (
-            <button
-              key={preset.id}
-              type="button"
-              className={`segmented__btn${
-                controls.lightPreset === preset.id ? " active" : ""
-              }`}
-              onClick={() => onSetControls({ lightPreset: preset.id })}
-            >
-              {copy.lightPresets[preset.labelKey]}
-            </button>
-          ))}
-        </div>
       </div>
 
       <div className="panel-card">

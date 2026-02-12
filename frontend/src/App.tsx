@@ -23,6 +23,8 @@ import type {
   NamedCustomData,
   PerformanceHint,
   PerformanceStats,
+  SatelliteMode,
+  ViewerEngine,
   ViewerMode,
 } from "./lib/viewerTypes";
 import "./App.css";
@@ -45,6 +47,48 @@ const VIEWER_MODES: { id: ViewerMode; labelKey: keyof (typeof I18N)["zh"]["viewe
   { id: "presentation", labelKey: "presentation" },
   { id: "stage", labelKey: "stage" },
 ];
+
+const VIEWER_ENGINES: { id: ViewerEngine; labelKey: keyof (typeof I18N)["zh"]["viewerEngines"] }[] = [
+  { id: "cesium", labelKey: "cesium" },
+  { id: "three", labelKey: "three" },
+];
+
+const SATELLITE_MODES: { id: SatelliteMode; labelKey: keyof (typeof I18N)["zh"]["satelliteModes"] }[] = [
+  { id: "fixed", labelKey: "fixed" },
+  { id: "tle", labelKey: "tle" },
+];
+
+const TLE_PRESETS: {
+  id: "leo" | "meo" | "geo";
+  labelKey: keyof (typeof I18N)["zh"]["tlePresets"];
+  line1: string;
+  line2: string;
+}[] = [
+  {
+    id: "leo",
+    labelKey: "leo",
+    // ISS (LEO)
+    line1: "1 25544U 98067A   26042.52170139  .00013873  00000+0  25253-3 0  9997",
+    line2: "2 25544  51.6388 110.5095 0006828  24.0952  92.6674 15.50070865435523",
+  },
+  {
+    id: "meo",
+    labelKey: "meo",
+    // GPS satellite (MEO)
+    line1: "1 24876U 97035A   26041.17643750 -.00000053  00000+0  00000+0 0  9990",
+    line2: "2 24876  55.4711  19.6356 0117070  57.3219 303.9068  2.00564629209144",
+  },
+  {
+    id: "geo",
+    labelKey: "geo",
+    // GOES (GEO)
+    line1: "1 41866U 16071A   26041.63475694  .00000026  00000+0  00000+0 0  9994",
+    line2: "2 41866   0.0493  76.5291 0000908  76.5707 157.0179  1.00271926 33605",
+  },
+];
+
+const DEFAULT_TLE_LINE_1 = TLE_PRESETS[0].line1;
+const DEFAULT_TLE_LINE_2 = TLE_PRESETS[0].line2;
 
 const FORMAT_PRIORITY = ["gltf", "glb", "usdz", "usd", "drc", "obj", "ply", "stl"];
 
@@ -274,6 +318,14 @@ function collectGltfCustomSections(gltf: GLTF) {
   return sections;
 }
 
+function releaseModelResources(value: ModelState | null) {
+  if (!value) return;
+  disposeObject(value.object);
+  if (value.cesiumUrl) {
+    URL.revokeObjectURL(value.cesiumUrl);
+  }
+}
+
 function App() {
   const [model, setModel] = useState<ModelState | null>(null);
   const [loading, setLoading] = useState(false);
@@ -291,6 +343,8 @@ function App() {
   const [morphTargets, setMorphTargets] = useState<MorphTargetInfo[]>([]);
   const [morphValues, setMorphValues] = useState<Record<string, number>>({});
   const [levaPosition, setLevaPosition] = useState({ x: 24, y: 24 });
+  const [focusSignal, setFocusSignal] = useState(0);
+  const [resetSignal, setResetSignal] = useState(0);
   const defaultLanguage = useMemo(() => getSystemLanguage(), []);
 
   const animationOptions = useMemo(() => {
@@ -308,6 +362,10 @@ function App() {
   const [controls, setControls] = useControls(
     () => ({
       language: { value: defaultLanguage, options: { 中文: "zh", English: "en" } },
+      renderEngine: {
+        value: "cesium",
+        options: { Cesium: "cesium", "Three.js": "three" },
+      },
       viewerMode: { value: "orbit", options: { Orbit: "orbit", Presentation: "presentation", Stage: "stage" } },
       showAxes: { value: true },
       axesSize: { value: 1.6, min: 0.4, max: 6, step: 0.1 },
@@ -330,6 +388,18 @@ function App() {
       animationClip: { value: "none", options: animationOptions },
       animationPlay: { value: true },
       animationSpeed: { value: 1, min: 0.2, max: 2.5, step: 0.1 },
+      satelliteMode: {
+        value: "tle",
+        options: { Fixed: "fixed", TLE: "tle" },
+      },
+      rightAscensionHours: { value: 8, min: 0, max: 24, step: 0.1 },
+      declinationDeg: { value: 5, min: -90, max: 90, step: 0.1 },
+      altitudeKm: { value: 750, min: 120, max: 80_000, step: 10 },
+      tleLine1: { value: DEFAULT_TLE_LINE_1 },
+      tleLine2: { value: DEFAULT_TLE_LINE_2 },
+      timeMultiplier: { value: 1, min: 0.1, max: 200, step: 0.1 },
+      trackSatellite: { value: false },
+      showOrbitPath: { value: false },
     }),
     [animationOptions, defaultLanguage]
   ) as unknown as [ControlsState, (values: Partial<ControlsState>) => void];
@@ -414,10 +484,12 @@ function App() {
       const fileMap = new Map(files.map((file) => [file.name, file]));
       setLoading(true);
       setError(null);
+      let nextCesiumUrl: string | null = null;
 
       try {
         if (model) {
-          disposeObject(model.object);
+          releaseModelResources(model);
+          setModel(null);
         }
 
         const extension = getExtension(mainFile.name);
@@ -454,6 +526,7 @@ function App() {
           animations = gltf.animations ?? [];
           customProperties = collectGltfCustomSections(gltf);
           revokeAll();
+          nextCesiumUrl = URL.createObjectURL(mainFile);
         } else if (extension === "obj") {
           const loader = new OBJLoader(manager);
           loadedObject = await loadAsync(loader, getUrl(mainFile));
@@ -510,9 +583,13 @@ function App() {
           stats,
           customProperties,
           source,
+          cesiumUrl: nextCesiumUrl,
         });
         setFitSignal((prev) => prev + 1);
       } catch (err) {
+        if (nextCesiumUrl) {
+          URL.revokeObjectURL(nextCesiumUrl);
+        }
         setError(copy.errorLoad);
         console.error(err);
       } finally {
@@ -566,7 +643,7 @@ function App() {
 
   const handleClear = () => {
     if (model) {
-      disposeObject(model.object);
+      releaseModelResources(model);
     }
     setModel(null);
     setError(null);
@@ -623,6 +700,14 @@ function App() {
 
   const languageToggleLabel = language === "zh" ? "EN" : "中文";
   const handleReframe = () => setFitSignal((prev) => prev + 1);
+  const handleFocusSatellite = () => setFocusSignal((prev) => prev + 1);
+  const handleToggleTrackSatellite = () => {
+    setControls({ trackSatellite: !controls.trackSatellite });
+  };
+  const handleToggleOrbitPath = () => {
+    setControls({ showOrbitPath: !controls.showOrbitPath });
+  };
+  const handleResetCamera = () => setResetSignal((prev) => prev + 1);
   const handleToggleLanguage = () => {
     setControls({ language: language === "zh" ? "en" : "zh" });
   };
@@ -648,7 +733,10 @@ function App() {
         error={error}
         controls={controls}
         onSetControls={setControls}
+        viewerEngines={VIEWER_ENGINES}
         viewerModes={VIEWER_MODES}
+        satelliteModes={SATELLITE_MODES}
+        tlePresets={TLE_PRESETS}
         lightPresets={LIGHT_PRESETS}
         onChooseFile={handleInput}
         onLoadExample={handleExample}
@@ -671,8 +759,14 @@ function App() {
         formatNumber={formatNumber}
         model={model}
         fitSignal={fitSignal}
+        focusSignal={focusSignal}
+        resetSignal={resetSignal}
         onPerfUpdate={setPerfStats}
         onReframe={handleReframe}
+        onFocusSatellite={handleFocusSatellite}
+        onToggleTrackSatellite={handleToggleTrackSatellite}
+        onToggleOrbitPath={handleToggleOrbitPath}
+        onResetCamera={handleResetCamera}
         onToggleLanguage={handleToggleLanguage}
         languageToggleLabel={languageToggleLabel}
       />
