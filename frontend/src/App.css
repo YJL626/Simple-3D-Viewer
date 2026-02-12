@@ -481,12 +481,46 @@ p {
   border: 1px solid rgba(255, 255, 255, 0.4);
 }
 
+.cesium-container {
+  position: relative;
+}
+
 .cesium-container,
 .cesium-container .cesium-widget,
 .cesium-container .cesium-viewer,
 .cesium-container .cesium-viewer-cesiumWidgetContainer {
   width: 100%;
   height: 100%;
+}
+
+.cesium-time-overlay {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  display: grid;
+  gap: 0.25rem;
+  min-width: 250px;
+  max-width: calc(100% - 1.5rem);
+  padding: 0.45rem 0.55rem;
+  border-radius: 10px;
+  background: rgba(13, 20, 28, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  color: #f4f6f8;
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+  z-index: 3;
+}
+
+.cesium-time-line {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.8rem;
+  white-space: nowrap;
+}
+
+.cesium-time-key {
+  color: rgba(244, 246, 248, 0.75);
 }
 
 .scene-empty-banner {

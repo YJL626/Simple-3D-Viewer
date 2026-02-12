@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import * as Cesium from "cesium";
 import { eciToGeodetic, gstime, propagate, twoline2satrec, type SatRec } from "satellite.js";
 import type { ControlsState, ModelState } from "../lib/viewerTypes";
@@ -16,6 +16,7 @@ type PositionConfig = {
   declinationDeg: number;
   altitudeKm: number;
   satrec: SatRec | null;
+  tleEpochDate: Date | null;
 };
 
 const EARTH_RADIUS_METERS = 6_378_137;
@@ -38,6 +39,8 @@ const ORBIT_UPDATE_INTERVAL_MS = 1_500;
 const ORBIT_COLOR = Cesium.Color.fromCssColorString("#f2cc8f").withAlpha(0.95);
 const ARCGIS_IMAGERY_URL =
   "https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer";
+const TLE_EPOCH_YEAR_PIVOT = 57;
+const MILLISECONDS_PER_DAY = 86_400_000;
 
 function parseSatrec(line1: string, line2: string) {
   const first = line1.trim();
@@ -51,6 +54,51 @@ function parseSatrec(line1: string, line2: string) {
   } catch {
     return null;
   }
+}
+
+function parseTleEpochDate(line1: string) {
+  const epochToken = line1.trim().split(/\s+/)[3];
+  if (!epochToken) return null;
+  const match = /^(\d{2})(\d{3}(?:\.\d+)?)$/.exec(epochToken);
+  if (!match) return null;
+
+  const twoDigitYear = Number(match[1]);
+  const dayOfYear = Number(match[2]);
+  if (!Number.isFinite(dayOfYear) || dayOfYear <= 0) return null;
+
+  const year =
+    twoDigitYear >= TLE_EPOCH_YEAR_PIVOT
+      ? 1900 + twoDigitYear
+      : 2000 + twoDigitYear;
+  const wholeDays = Math.floor(dayOfYear);
+  const fractionalDay = dayOfYear - wholeDays;
+  const startOfYearUtc = Date.UTC(year, 0, 1);
+  return new Date(
+    startOfYearUtc + (wholeDays - 1) * MILLISECONDS_PER_DAY + fractionalDay * MILLISECONDS_PER_DAY
+  );
+}
+
+function formatClockLabel(date: Date) {
+  const iso = date.toISOString();
+  return `${iso.slice(0, 10)} ${iso.slice(11, 19)} UTC`;
+}
+
+function buildPositionConfig(controls: ControlsState): PositionConfig {
+  return {
+    mode: controls.satelliteMode,
+    rightAscensionHours: controls.rightAscensionHours,
+    declinationDeg: controls.declinationDeg,
+    altitudeKm: controls.altitudeKm,
+    satrec: parseSatrec(controls.tleLine1, controls.tleLine2),
+    tleEpochDate: parseTleEpochDate(controls.tleLine1),
+  };
+}
+
+function getClockStartDate(config: PositionConfig) {
+  if (config.mode === "tle") {
+    return config.tleEpochDate;
+  }
+  return new Date();
 }
 
 function normalizeDegrees(value: number) {
@@ -207,6 +255,8 @@ export function CesiumCanvas({
   focusSignal,
   resetSignal,
 }: CesiumCanvasProps) {
+  const [clockStartLabel, setClockStartLabel] = useState("--");
+  const [clockCurrentLabel, setClockCurrentLabel] = useState("--");
   const containerRef = useRef<HTMLDivElement | null>(null);
   const viewerRef = useRef<Cesium.Viewer | null>(null);
   const modelRef = useRef<Cesium.Model | null>(null);
@@ -217,14 +267,13 @@ export function CesiumCanvas({
   const orbitNeedsRefreshRef = useRef(true);
   const lastOrbitRefreshRef = useRef(0);
   const lastPositionRef = useRef(Cesium.Cartesian3.fromDegrees(0, 0, 600_000));
+  const lastCurrentClockLabelRef = useRef("");
   const syncAnimationStateRef = useRef<() => void>(() => {});
-  const positionConfigRef = useRef<PositionConfig>({
-    mode: controls.satelliteMode,
-    rightAscensionHours: controls.rightAscensionHours,
-    declinationDeg: controls.declinationDeg,
-    altitudeKm: controls.altitudeKm,
-    satrec: parseSatrec(controls.tleLine1, controls.tleLine2),
-  });
+  const positionConfigRef = useRef<PositionConfig>(buildPositionConfig(controls));
+  const clockAnchorKey =
+    controls.satelliteMode === "tle" ? controls.tleLine1.trim() : controls.satelliteMode;
+  const startTimeLabel = controls.language === "zh" ? "开始时间" : "Start time";
+  const currentTimeLabel = controls.language === "zh" ? "当前时间" : "Current time";
 
   const applyDefaultCamera = useCallback(() => {
     const viewer = viewerRef.current;
@@ -249,6 +298,27 @@ export function CesiumCanvas({
     }
     modelRef.current = null;
   }, []);
+
+  const applyClockStartTime = useCallback(
+    (viewer: Cesium.Viewer, config: PositionConfig) => {
+      const startDate = getClockStartDate(config);
+      if (!startDate) {
+        setClockStartLabel("--");
+        return false;
+      }
+      const startTime = Cesium.JulianDate.fromDate(startDate);
+      viewer.clock.startTime = Cesium.JulianDate.clone(startTime, viewer.clock.startTime);
+      viewer.clock.currentTime = Cesium.JulianDate.clone(startTime, viewer.clock.currentTime);
+      viewer.clock.shouldAnimate = true;
+
+      const label = formatClockLabel(startDate);
+      lastCurrentClockLabelRef.current = label;
+      setClockStartLabel(label);
+      setClockCurrentLabel(label);
+      return true;
+    },
+    []
+  );
 
   const syncAnimationState = useCallback(() => {
     const primitive = modelRef.current;
@@ -277,13 +347,7 @@ export function CesiumCanvas({
   }, [controls.animationClip, controls.animationPlay, controls.animationSpeed]);
 
   useEffect(() => {
-    positionConfigRef.current = {
-      mode: controls.satelliteMode,
-      rightAscensionHours: controls.rightAscensionHours,
-      declinationDeg: controls.declinationDeg,
-      altitudeKm: controls.altitudeKm,
-      satrec: parseSatrec(controls.tleLine1, controls.tleLine2),
-    };
+    positionConfigRef.current = buildPositionConfig(controls);
     orbitNeedsRefreshRef.current = true;
   }, [
     controls.satelliteMode,
@@ -293,6 +357,15 @@ export function CesiumCanvas({
     controls.tleLine1,
     controls.tleLine2,
   ]);
+
+  useEffect(() => {
+    const viewer = viewerRef.current;
+    if (!viewer) return;
+    const applied = applyClockStartTime(viewer, positionConfigRef.current);
+    if (!applied) return;
+    orbitNeedsRefreshRef.current = true;
+    lastOrbitRefreshRef.current = 0;
+  }, [applyClockStartTime, clockAnchorKey]);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -314,6 +387,7 @@ export function CesiumCanvas({
     let isDisposed = false;
     void applyEarthImagery(viewer, () => isDisposed);
     viewer.clock.clockStep = Cesium.ClockStep.SYSTEM_CLOCK_MULTIPLIER;
+    applyClockStartTime(viewer, positionConfigRef.current);
     viewer.clock.multiplier = controls.timeMultiplier;
     viewer.scene.globe.enableLighting = true;
     if (viewer.scene.skyAtmosphere) {
@@ -349,6 +423,11 @@ export function CesiumCanvas({
     showOrbitPathRef.current = controls.showOrbitPath;
     const tickHandler = (clock: Cesium.Clock) => {
       const nowDate = Cesium.JulianDate.toDate(clock.currentTime);
+      const nowLabel = formatClockLabel(nowDate);
+      if (nowLabel !== lastCurrentClockLabelRef.current) {
+        lastCurrentClockLabelRef.current = nowLabel;
+        setClockCurrentLabel(nowLabel);
+      }
       const next = computeSatellitePosition(
         positionConfigRef.current,
         nowDate
@@ -397,7 +476,7 @@ export function CesiumCanvas({
       viewer.destroy();
       viewerRef.current = null;
     };
-  }, [applyDefaultCamera, clearModelPrimitive]);
+  }, [applyClockStartTime, applyDefaultCamera, clearModelPrimitive]);
 
   useEffect(() => {
     const viewer = viewerRef.current;
@@ -513,5 +592,18 @@ export function CesiumCanvas({
     }
   }, [controls.showOrbitPath]);
 
-  return <div className="cesium-container" ref={containerRef} />;
+  return (
+    <div className="cesium-container" ref={containerRef}>
+      <div className="cesium-time-overlay">
+        <div className="cesium-time-line">
+          <span className="cesium-time-key">{startTimeLabel}</span>
+          <span>{clockStartLabel}</span>
+        </div>
+        <div className="cesium-time-line">
+          <span className="cesium-time-key">{currentTimeLabel}</span>
+          <span>{clockCurrentLabel}</span>
+        </div>
+      </div>
+    </div>
+  );
 }
