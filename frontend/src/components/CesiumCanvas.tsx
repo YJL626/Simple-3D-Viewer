@@ -41,6 +41,9 @@ const ARCGIS_IMAGERY_URL =
   "https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer";
 const TLE_EPOCH_YEAR_PIVOT = 57;
 const MILLISECONDS_PER_DAY = 86_400_000;
+const GLTF_Y_UP_TO_ENU_Z_UP = Cesium.Matrix4.fromRotationTranslation(
+  Cesium.Matrix3.fromRotationX(Cesium.Math.toRadians(90))
+);
 
 function parseSatrec(line1: string, line2: string) {
   const first = line1.trim();
@@ -180,6 +183,19 @@ function computeSatellitePosition(config: PositionConfig, date: Date) {
   );
 }
 
+function getModelMatrixForPosition(
+  position: Cesium.Cartesian3,
+  verticalToGround: boolean
+) {
+  const enuMatrix = Cesium.Transforms.eastNorthUpToFixedFrame(position);
+  if (!verticalToGround) return enuMatrix;
+  return Cesium.Matrix4.multiply(
+    enuMatrix,
+    GLTF_Y_UP_TO_ENU_Z_UP,
+    new Cesium.Matrix4()
+  );
+}
+
 function getOrbitSpanSeconds(config: PositionConfig) {
   if (
     config.mode === "tle" &&
@@ -267,6 +283,7 @@ export function CesiumCanvas({
   const orbitNeedsRefreshRef = useRef(true);
   const lastOrbitRefreshRef = useRef(0);
   const lastPositionRef = useRef(Cesium.Cartesian3.fromDegrees(0, 0, 600_000));
+  const satelliteVerticalToGroundRef = useRef(controls.satelliteVerticalToGround);
   const lastCurrentClockLabelRef = useRef("");
   const syncAnimationStateRef = useRef<() => void>(() => {});
   const positionConfigRef = useRef<PositionConfig>(buildPositionConfig(controls));
@@ -435,8 +452,9 @@ export function CesiumCanvas({
       Cesium.Cartesian3.clone(next, lastPositionRef.current);
       const primitive = modelRef.current;
       if (primitive) {
-        primitive.modelMatrix = Cesium.Transforms.eastNorthUpToFixedFrame(
-          lastPositionRef.current
+        primitive.modelMatrix = getModelMatrixForPosition(
+          lastPositionRef.current,
+          satelliteVerticalToGroundRef.current
         );
       }
       if (showOrbitPathRef.current) {
@@ -521,8 +539,9 @@ export function CesiumCanvas({
           Cesium.JulianDate.toDate(viewer.clock.currentTime)
         );
         Cesium.Cartesian3.clone(initialPosition, lastPositionRef.current);
-        primitive.modelMatrix = Cesium.Transforms.eastNorthUpToFixedFrame(
-          lastPositionRef.current
+        primitive.modelMatrix = getModelMatrixForPosition(
+          lastPositionRef.current,
+          satelliteVerticalToGroundRef.current
         );
         if (primitive.ready) {
           syncAnimationStateRef.current();
@@ -580,6 +599,16 @@ export function CesiumCanvas({
       viewer.trackedEntity = undefined;
     }
   }, [controls.trackSatellite, model?.cesiumUrl]);
+
+  useEffect(() => {
+    satelliteVerticalToGroundRef.current = controls.satelliteVerticalToGround;
+    const primitive = modelRef.current;
+    if (!primitive) return;
+    primitive.modelMatrix = getModelMatrixForPosition(
+      lastPositionRef.current,
+      satelliteVerticalToGroundRef.current
+    );
+  }, [controls.satelliteVerticalToGround]);
 
   useEffect(() => {
     showOrbitPathRef.current = controls.showOrbitPath;

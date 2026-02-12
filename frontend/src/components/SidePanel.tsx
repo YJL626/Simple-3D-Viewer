@@ -229,6 +229,20 @@ export function SidePanel({
                 </button>
               ))}
             </div>
+            <div className="toggle-grid">
+              <label>
+                <input
+                  type="checkbox"
+                  checked={controls.satelliteVerticalToGround}
+                  onChange={(event) =>
+                    onSetControls({
+                      satelliteVerticalToGround: event.target.checked,
+                    })
+                  }
+                />
+                {copy.satelliteVerticalToGround}
+              </label>
+            </div>
 
             {controls.satelliteMode === "fixed" ? (
               <div className="field-grid">

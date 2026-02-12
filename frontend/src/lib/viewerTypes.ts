@@ -90,4 +90,5 @@ export type ControlsState = {
   timeMultiplier: number;
   trackSatellite: boolean;
   showOrbitPath: boolean;
+  satelliteVerticalToGround: boolean;
 };

@@ -400,6 +400,7 @@ function App() {
       timeMultiplier: { value: 1, min: 0.1, max: 200, step: 0.1 },
       trackSatellite: { value: false },
       showOrbitPath: { value: false },
+      satelliteVerticalToGround: { value: false },
     }),
     [animationOptions, defaultLanguage]
   ) as unknown as [ControlsState, (values: Partial<ControlsState>) => void];
