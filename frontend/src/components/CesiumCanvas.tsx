@@ -36,6 +36,8 @@ const ORBIT_MAX_SPAN_SECONDS = 24 * 60 * 60;
 const ORBIT_DEFAULT_SPAN_SECONDS = 90 * 60;
 const ORBIT_UPDATE_INTERVAL_MS = 1_500;
 const ORBIT_COLOR = Cesium.Color.fromCssColorString("#f2cc8f").withAlpha(0.95);
+const ARCGIS_IMAGERY_URL =
+  "https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer";
 
 function parseSatrec(line1: string, line2: string) {
   const first = line1.trim();
@@ -163,15 +165,15 @@ function buildOrbitPathPositions(config: PositionConfig, centerDate: Date) {
 
 async function applyEarthImagery(viewer: Cesium.Viewer, cancelled: () => boolean) {
   try {
-    const naturalEarth = await Cesium.TileMapServiceImageryProvider.fromUrl(
-      Cesium.buildModuleUrl("Assets/Textures/NaturalEarthII")
+    const arcgisImagery = await Cesium.ArcGisMapServerImageryProvider.fromUrl(
+      ARCGIS_IMAGERY_URL
     );
     if (cancelled()) return;
     viewer.imageryLayers.removeAll();
-    viewer.imageryLayers.addImageryProvider(naturalEarth);
+    viewer.imageryLayers.addImageryProvider(arcgisImagery);
     return;
   } catch (error) {
-    console.warn("Failed to load local NaturalEarthII imagery, falling back to OSM.", error);
+    console.warn("Failed to load ArcGIS World Imagery, falling back to OSM.", error);
   }
 
   try {
@@ -182,8 +184,20 @@ async function applyEarthImagery(viewer: Cesium.Viewer, cancelled: () => boolean
         url: "https://tile.openstreetmap.org/",
       })
     );
+    return;
   } catch (error) {
-    console.error("Failed to load OSM fallback imagery.", error);
+    console.warn("Failed to load OSM imagery, falling back to local NaturalEarthII.", error);
+  }
+
+  try {
+    const naturalEarth = await Cesium.TileMapServiceImageryProvider.fromUrl(
+      Cesium.buildModuleUrl("Assets/Textures/NaturalEarthII")
+    );
+    if (cancelled()) return;
+    viewer.imageryLayers.removeAll();
+    viewer.imageryLayers.addImageryProvider(naturalEarth);
+  } catch (error) {
+    console.error("Failed to load any globe imagery layer.", error);
   }
 }
 
