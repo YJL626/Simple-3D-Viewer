@@ -398,7 +398,7 @@ function App() {
       tleLine1: { value: DEFAULT_TLE_LINE_1 },
       tleLine2: { value: DEFAULT_TLE_LINE_2 },
       timeMultiplier: { value: 1, min: 0.1, max: 200, step: 0.1 },
-      trackSatellite: { value: false },
+      trackSatellite: { value: true },
       showOrbitPath: { value: false },
       satelliteVerticalToGround: { value: false },
     }),
@@ -703,7 +703,7 @@ function App() {
   const handleReframe = () => setFitSignal((prev) => prev + 1);
   const handleFocusSatellite = () => setFocusSignal((prev) => prev + 1);
   const handleToggleTrackSatellite = () => {
-    setControls({ trackSatellite: !controls.trackSatellite });
+    setControls({ trackSatellite: true });
   };
   const handleToggleOrbitPath = () => {
     setControls({ showOrbitPath: !controls.showOrbitPath });

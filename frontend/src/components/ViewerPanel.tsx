@@ -1,3 +1,4 @@
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { I18nCopy } from "../i18n/copy";
 import type {
   ControlsState,
@@ -45,6 +46,54 @@ export function ViewerPanel({
   languageToggleLabel,
 }: ViewerPanelProps) {
   const isCesium = controls.renderEngine === "cesium";
+  const viewportRef = useRef<HTMLDivElement | null>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  const syncFullscreenState = useCallback(() => {
+    if (typeof document === "undefined") return;
+    const viewport = viewportRef.current;
+    const fullscreenElement = document.fullscreenElement;
+    if (!viewport || !fullscreenElement) {
+      setIsFullscreen(false);
+      return;
+    }
+    setIsFullscreen(fullscreenElement === viewport || viewport.contains(fullscreenElement));
+  }, []);
+
+  useEffect(() => {
+    syncFullscreenState();
+
+    const handleFullscreenChange = () => {
+      syncFullscreenState();
+    };
+
+    document.addEventListener("fullscreenchange", handleFullscreenChange);
+
+    return () => {
+      document.removeEventListener("fullscreenchange", handleFullscreenChange);
+    };
+  }, [syncFullscreenState]);
+
+  const handleToggleFullscreen = useCallback(async () => {
+    if (typeof document === "undefined") return;
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+    const fullscreenElement = document.fullscreenElement;
+    const isViewportFullscreen =
+      fullscreenElement === viewport || (fullscreenElement ? viewport.contains(fullscreenElement) : false);
+
+    try {
+      if (isViewportFullscreen) {
+        await document.exitFullscreen();
+        setIsFullscreen(false);
+      } else {
+        await viewport.requestFullscreen();
+        setIsFullscreen(true);
+      }
+    } catch {
+      // Fullscreen can fail when blocked by platform/window manager.
+    }
+  }, []);
 
   return (
     <main className="viewer-panel">
@@ -75,14 +124,12 @@ export function ViewerPanel({
                 {copy.focusSatellite}
               </button>
               <button
-                className={`button${controls.trackSatellite ? " button--primary" : ""}`}
+                className="button button--primary"
                 type="button"
                 onClick={onToggleTrackSatellite}
                 disabled={!model?.cesiumUrl}
               >
-                {controls.trackSatellite
-                  ? copy.untrackSatellite
-                  : copy.trackSatellite}
+                {copy.trackSatellite}
               </button>
               <button
                 className={`button${controls.showOrbitPath ? " button--primary" : ""}`}
@@ -95,6 +142,9 @@ export function ViewerPanel({
               </button>
               <button className="button" type="button" onClick={onResetCamera}>
                 {copy.resetCamera}
+              </button>
+              <button className="button" type="button" onClick={() => void handleToggleFullscreen()}>
+                {isFullscreen ? copy.exitFullscreen : copy.enterFullscreen}
               </button>
             </>
           ) : (
@@ -111,7 +161,7 @@ export function ViewerPanel({
           </button>
         </div>
       </div>
-      <div className="scene-frame">
+      <div className="scene-frame" ref={isCesium ? viewportRef : null}>
         {isCesium ? (
           <>
             <CesiumCanvas

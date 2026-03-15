@@ -39,6 +39,11 @@ const ORBIT_UPDATE_INTERVAL_MS = 1_500;
 const ORBIT_COLOR = Cesium.Color.fromCssColorString("#f2cc8f").withAlpha(0.95);
 const ARCGIS_IMAGERY_URL =
   "https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer";
+const TRACK_DEFAULT_RANGE_METERS = 14_000;
+const TRACK_RANGE_FROM_MODEL_FACTOR = 3;
+const TRACK_MIN_RANGE_METERS = 0.2;
+const TRACK_VIEW_LATERAL_FACTOR = 0.25;
+const TRACK_VIEW_VERTICAL_FACTOR = 0.25;
 const TLE_EPOCH_YEAR_PIVOT = 57;
 const MILLISECONDS_PER_DAY = 86_400_000;
 const GLTF_Y_UP_TO_ENU_Z_UP = Cesium.Matrix4.fromRotationTranslation(
@@ -225,6 +230,22 @@ function buildOrbitPathPositions(config: PositionConfig, centerDate: Date) {
     positions.push(computeSatellitePosition(config, sampleDate));
   }
   return positions;
+}
+
+function getTrackRangeForModel(model: Cesium.Model | null) {
+  if (!model || !model.ready) return TRACK_DEFAULT_RANGE_METERS;
+  return Math.max(
+    model.boundingSphere.radius * TRACK_RANGE_FROM_MODEL_FACTOR,
+    TRACK_MIN_RANGE_METERS
+  );
+}
+
+function getTrackViewFrom(rangeMeters: number) {
+  return new Cesium.Cartesian3(
+    -rangeMeters,
+    rangeMeters * TRACK_VIEW_LATERAL_FACTOR,
+    rangeMeters * TRACK_VIEW_VERTICAL_FACTOR
+  );
 }
 
 async function applyEarthImagery(viewer: Cesium.Viewer, cancelled: () => boolean) {
@@ -417,6 +438,7 @@ export function CesiumCanvas({
         (_time, result) => Cesium.Cartesian3.clone(lastPositionRef.current, result),
         false
       ),
+      viewFrom: new Cesium.ConstantProperty(getTrackViewFrom(TRACK_DEFAULT_RANGE_METERS)),
       point: {
         pixelSize: 1,
         color: Cesium.Color.TRANSPARENT,
@@ -519,7 +541,7 @@ export function CesiumCanvas({
       try {
         const primitive = await Cesium.Model.fromGltfAsync({
           url: modelUrl,
-          minimumPixelSize: 96,
+          minimumPixelSize: 4960,
           maximumScale: 28_000,
         });
         if (cancelled) {
@@ -543,6 +565,12 @@ export function CesiumCanvas({
           lastPositionRef.current,
           satelliteVerticalToGroundRef.current
         );
+        const trackedEntity = trackedEntityRef.current;
+        if (trackedEntity) {
+          trackedEntity.viewFrom = new Cesium.ConstantProperty(
+            getTrackViewFrom(getTrackRangeForModel(primitive))
+          );
+        }
         if (primitive.ready) {
           syncAnimationStateRef.current();
           viewer.camera.flyToBoundingSphere(primitive.boundingSphere, {
@@ -553,6 +581,12 @@ export function CesiumCanvas({
           primitive.readyEvent.addEventListener(() => {
             if (cancelled || primitive !== modelRef.current) return;
             syncAnimationStateRef.current();
+            const trackedEntity = trackedEntityRef.current;
+            if (trackedEntity) {
+              trackedEntity.viewFrom = new Cesium.ConstantProperty(
+                getTrackViewFrom(getTrackRangeForModel(primitive))
+              );
+            }
             viewer.camera.flyToBoundingSphere(primitive.boundingSphere, {
               duration: 1.2,
               offset: FOCUS_CAMERA_OFFSET,
@@ -591,14 +625,16 @@ export function CesiumCanvas({
     const viewer = viewerRef.current;
     const trackedEntity = trackedEntityRef.current;
     if (!viewer || !trackedEntity) return;
-    if (controls.trackSatellite && model?.cesiumUrl) {
-      viewer.trackedEntity = trackedEntity;
+    if (model?.cesiumUrl) {
+      if (viewer.trackedEntity !== trackedEntity) {
+        viewer.trackedEntity = trackedEntity;
+      }
       return;
     }
     if (viewer.trackedEntity === trackedEntity) {
       viewer.trackedEntity = undefined;
     }
-  }, [controls.trackSatellite, model?.cesiumUrl]);
+  }, [model?.cesiumUrl]);
 
   useEffect(() => {
     satelliteVerticalToGroundRef.current = controls.satelliteVerticalToGround;
