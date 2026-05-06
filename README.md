@@ -12,7 +12,7 @@ Portable single-file offline 3D viewer (Wails + React + three.js) for quick drag
 - Formats: DRC, GLB, GLTF, OBJ, PLY, STL, USDZ (USD should be converted to USDZ).
 - Model stats: triangles, vertices, meshes, materials, bounding size.
 - Lighting presets + viewer modes (Orbit, Presentation, Stage).
-- Animation playback + morph targets (shape keys).
+- Animation playback + morph targets (shape keys) + KHR_materials_variants material switching.
 - FPS + frame time overlay.
 - Custom properties viewer for GLTF/GLB extras with copy-to-clipboard JSON.
 
@@ -39,4 +39,5 @@ Wails:
 
 ## Notes
 - For USD files, convert to USDZ before loading.
+- Three.js is the default render engine; Cesium remains available for satellite/globe preview.
 - Custom properties are shown only for GLTF/GLB models (asset/root/scene/nodes/materials extras).

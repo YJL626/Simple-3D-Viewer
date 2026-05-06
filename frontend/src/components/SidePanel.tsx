@@ -1,6 +1,7 @@
 import type { ChangeEvent } from "react";
 import { Inspector } from "react-inspector";
 import type { I18nCopy } from "../i18n/copy";
+import { DEFAULT_MATERIAL_VARIANT_ID } from "../lib/materialVariants";
 import type {
   ControlsState,
   LightPreset,
@@ -142,6 +143,8 @@ export function SidePanel({
   );
   const isCesium = controls.renderEngine === "cesium";
   const isGltf = model?.format === "gltf" || model?.format === "glb";
+  const materialVariants = model?.materialVariants ?? [];
+  const hasMaterialVariants = materialVariants.length > 0;
   const customSections = model?.customProperties ?? [];
 
   return (
@@ -509,6 +512,48 @@ export function SidePanel({
           </div>
         )}
       </div>
+
+      {!isCesium && (
+        <div className="panel-card">
+          <h2>{copy.materialVariants}</h2>
+          {!model ? (
+            <p className="muted">{copy.noModel}</p>
+          ) : !isGltf ? (
+            <p className="muted">{copy.materialVariantsUnsupported}</p>
+          ) : !hasMaterialVariants ? (
+            <p className="muted">{copy.materialVariantsEmpty}</p>
+          ) : (
+            <>
+              <p className="muted">{copy.materialVariantsHint}</p>
+              <div className="chip-group">
+                <button
+                  type="button"
+                  className={`chip${
+                    controls.materialVariant === DEFAULT_MATERIAL_VARIANT_ID ? " active" : ""
+                  }`}
+                  onClick={() =>
+                    onSetControls({ materialVariant: DEFAULT_MATERIAL_VARIANT_ID })
+                  }
+                >
+                  {copy.materialVariantDefault}
+                </button>
+                {materialVariants.map((variant) => (
+                  <button
+                    key={variant.id}
+                    type="button"
+                    className={`chip${
+                      controls.materialVariant === variant.id ? " active" : ""
+                    }`}
+                    onClick={() => onSetControls({ materialVariant: variant.id })}
+                  >
+                    {variant.name}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      )}
 
       <div className="panel-card">
         <h2>{copy.morphTargets}</h2>

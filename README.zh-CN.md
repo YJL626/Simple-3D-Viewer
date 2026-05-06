@@ -13,7 +13,7 @@
 - 支持格式：DRC、GLB、GLTF、OBJ、PLY、STL、USDZ（USD 需先转为 USDZ）。
 - 模型统计：面数、顶点、网格、材质、包围尺寸。
 - 灯光预设 + 视图模式（轨道/演示/舞台）。
-- 动画播放 + 形态键（shape keys）。
+- 动画播放 + 形态键（shape keys）+ KHR_materials_variants 材质变体切换。
 - FPS + 帧时间叠加。
 - 自定义属性查看（GLTF/GLB 的 extras），支持复制 JSON。
 
@@ -40,4 +40,5 @@ Wails：
 
 ## 备注
 - USD 文件请先转换为 USDZ 再加载。
+- 默认渲染引擎为 Three.js；Cesium 仍可用于卫星/地球预览。
 - 自定义属性仅在 GLTF/GLB 中显示（asset/root/scene/nodes/materials 的 extras）。

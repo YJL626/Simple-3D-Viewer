@@ -26,6 +26,18 @@ export type CustomPropertySection = {
   value: unknown;
 };
 
+export type MaterialVariantBinding = {
+  mesh: THREE.Mesh;
+  originalMaterial: THREE.Material | THREE.Material[];
+  variantMaterials: Record<string, THREE.Material>;
+};
+
+export type MaterialVariantInfo = {
+  id: string;
+  name: string;
+  bindings: MaterialVariantBinding[];
+};
+
 export type ModelState = {
   object: THREE.Object3D;
   animations: THREE.AnimationClip[];
@@ -33,6 +45,7 @@ export type ModelState = {
   format: string;
   stats: ModelStats;
   customProperties: CustomPropertySection[];
+  materialVariants: MaterialVariantInfo[];
   source: "local" | "example";
   cesiumUrl: string | null;
 };
@@ -81,6 +94,7 @@ export type ControlsState = {
   animationClip: string;
   animationPlay: boolean;
   animationSpeed: number;
+  materialVariant: string;
   satelliteMode: SatelliteMode;
   rightAscensionHours: number;
   declinationDeg: number;

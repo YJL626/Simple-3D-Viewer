@@ -12,11 +12,19 @@ import { USDZLoader } from "three/examples/jsm/loaders/USDZLoader.js";
 import { SidePanel } from "./components/SidePanel";
 import { ViewerPanel } from "./components/ViewerPanel";
 import { I18N } from "./i18n/copy";
+import {
+  DEFAULT_MATERIAL_VARIANT_ID,
+  applyMaterialVariant,
+  collectGltfMaterialVariants,
+  collectMaterialVariantMaterials,
+  registerMaterialVariantsExtension,
+} from "./lib/materialVariants";
 import type {
   ControlsState,
   CustomPropertySection,
   Language,
   LightPreset,
+  MaterialVariantInfo,
   ModelState,
   MorphBinding,
   MorphTargetInfo,
@@ -49,8 +57,8 @@ const VIEWER_MODES: { id: ViewerMode; labelKey: keyof (typeof I18N)["zh"]["viewe
 ];
 
 const VIEWER_ENGINES: { id: ViewerEngine; labelKey: keyof (typeof I18N)["zh"]["viewerEngines"] }[] = [
-  { id: "cesium", labelKey: "cesium" },
   { id: "three", labelKey: "three" },
+  { id: "cesium", labelKey: "cesium" },
 ];
 
 const SATELLITE_MODES: { id: SatelliteMode; labelKey: keyof (typeof I18N)["zh"]["satelliteModes"] }[] = [
@@ -130,32 +138,39 @@ function loadAsync<T>(
     loader.load(url, (data) => resolve(data), undefined, (error) => reject(error));
   });
 }
-function disposeObject(object: THREE.Object3D) {
+function disposeObject(object: THREE.Object3D, extraMaterials: THREE.Material[] = []) {
+  const materials = new Set<THREE.Material>();
   object.traverse((child) => {
     if ((child as THREE.Mesh).isMesh) {
       const mesh = child as THREE.Mesh;
       mesh.geometry?.dispose();
       const material = mesh.material;
       if (Array.isArray(material)) {
-        material.forEach((item) => item.dispose());
+        material.forEach((item) => materials.add(item));
       } else {
-        material?.dispose();
+        materials.add(material);
       }
     }
   });
+  extraMaterials.forEach((material) => materials.add(material));
+  materials.forEach((material) => material.dispose());
+}
+
+function prepareMaterial(material: THREE.Material) {
+  if ("metalness" in material) {
+    (material as THREE.MeshStandardMaterial).metalness ??= 0.1;
+  }
+  if ("roughness" in material) {
+    (material as THREE.MeshStandardMaterial).roughness ??= 0.6;
+  }
+  material.side = THREE.DoubleSide;
 }
 
 function prepareMeshMaterial(mesh: THREE.Mesh) {
   const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
   materials.forEach((material) => {
     if (!material) return;
-    if ("metalness" in material) {
-      (material as THREE.MeshStandardMaterial).metalness ??= 0.1;
-    }
-    if ("roughness" in material) {
-      (material as THREE.MeshStandardMaterial).roughness ??= 0.6;
-    }
-    material.side = THREE.DoubleSide;
+    prepareMaterial(material);
   });
 }
 
@@ -320,7 +335,7 @@ function collectGltfCustomSections(gltf: GLTF) {
 
 function releaseModelResources(value: ModelState | null) {
   if (!value) return;
-  disposeObject(value.object);
+  disposeObject(value.object, collectMaterialVariantMaterials(value.materialVariants));
   if (value.cesiumUrl) {
     URL.revokeObjectURL(value.cesiumUrl);
   }
@@ -359,12 +374,26 @@ function App() {
     return options;
   }, [model?.animations]);
 
+  const materialVariantOptions = useMemo(() => {
+    const options: Record<string, string> = {
+      Default: DEFAULT_MATERIAL_VARIANT_ID,
+    };
+    const seenNames = new Map<string, number>();
+    model?.materialVariants.forEach((variant) => {
+      const count = seenNames.get(variant.name) ?? 0;
+      seenNames.set(variant.name, count + 1);
+      const label = count === 0 ? variant.name : `${variant.name} (${count + 1})`;
+      options[label] = variant.id;
+    });
+    return options;
+  }, [model?.materialVariants]);
+
   const [controls, setControls] = useControls(
     () => ({
       language: { value: defaultLanguage, options: { 中文: "zh", English: "en" } },
       renderEngine: {
-        value: "cesium",
-        options: { Cesium: "cesium", "Three.js": "three" },
+        value: "three",
+        options: { "Three.js": "three", Cesium: "cesium" },
       },
       viewerMode: { value: "orbit", options: { Orbit: "orbit", Presentation: "presentation", Stage: "stage" } },
       showAxes: { value: true },
@@ -388,6 +417,7 @@ function App() {
       animationClip: { value: "none", options: animationOptions },
       animationPlay: { value: true },
       animationSpeed: { value: 1, min: 0.2, max: 2.5, step: 0.1 },
+      materialVariant: { value: DEFAULT_MATERIAL_VARIANT_ID, options: materialVariantOptions },
       satelliteMode: {
         value: "tle",
         options: { Fixed: "fixed", TLE: "tle" },
@@ -402,7 +432,7 @@ function App() {
       showOrbitPath: { value: false },
       satelliteVerticalToGround: { value: false },
     }),
-    [animationOptions, defaultLanguage]
+    [animationOptions, defaultLanguage, materialVariantOptions]
   ) as unknown as [ControlsState, (values: Partial<ControlsState>) => void];
 
   const language = controls.language;
@@ -445,6 +475,25 @@ function App() {
       setControls({ animationClip: "none" });
     }
   }, [controls.animationClip, model, setControls]);
+
+  useEffect(() => {
+    if (!model) {
+      if (controls.materialVariant !== DEFAULT_MATERIAL_VARIANT_ID) {
+        setControls({ materialVariant: DEFAULT_MATERIAL_VARIANT_ID });
+      }
+      return;
+    }
+
+    const isKnownVariant = model.materialVariants.some(
+      (variant) => variant.id === controls.materialVariant
+    );
+    if (controls.materialVariant !== DEFAULT_MATERIAL_VARIANT_ID && !isKnownVariant) {
+      setControls({ materialVariant: DEFAULT_MATERIAL_VARIANT_ID });
+      return;
+    }
+
+    applyMaterialVariant(model.materialVariants, controls.materialVariant);
+  }, [controls.materialVariant, model, setControls]);
 
   useEffect(() => {
     if (!model) {
@@ -519,13 +568,16 @@ function App() {
         let loadedObject: THREE.Object3D;
         let animations: THREE.AnimationClip[] = [];
         let customProperties: CustomPropertySection[] = [];
+        let materialVariants: MaterialVariantInfo[] = [];
         if (extension === "glb" || extension === "gltf") {
           const loader = new GLTFLoader(manager);
+          registerMaterialVariantsExtension(loader);
           loader.setDRACOLoader(dracoLoader);
           const gltf = await loadAsync(loader, getUrl(mainFile));
           loadedObject = gltf.scene;
           animations = gltf.animations ?? [];
           customProperties = collectGltfCustomSections(gltf);
+          materialVariants = await collectGltfMaterialVariants(gltf, prepareMaterial);
           revokeAll();
           nextCesiumUrl = URL.createObjectURL(mainFile);
         } else if (extension === "obj") {
@@ -583,6 +635,7 @@ function App() {
           format: extension,
           stats,
           customProperties,
+          materialVariants,
           source,
           cesiumUrl: nextCesiumUrl,
         });
