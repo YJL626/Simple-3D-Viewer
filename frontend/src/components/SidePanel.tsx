@@ -523,34 +523,31 @@ export function SidePanel({
           ) : !hasMaterialVariants ? (
             <p className="muted">{copy.materialVariantsEmpty}</p>
           ) : (
-            <>
-              <p className="muted">{copy.materialVariantsHint}</p>
-              <div className="chip-group">
+            <div className="chip-group">
+              <button
+                type="button"
+                className={`chip${
+                  controls.materialVariant === DEFAULT_MATERIAL_VARIANT_ID ? " active" : ""
+                }`}
+                onClick={() =>
+                  onSetControls({ materialVariant: DEFAULT_MATERIAL_VARIANT_ID })
+                }
+              >
+                {copy.materialVariantDefault}
+              </button>
+              {materialVariants.map((variant) => (
                 <button
+                  key={variant.id}
                   type="button"
                   className={`chip${
-                    controls.materialVariant === DEFAULT_MATERIAL_VARIANT_ID ? " active" : ""
+                    controls.materialVariant === variant.id ? " active" : ""
                   }`}
-                  onClick={() =>
-                    onSetControls({ materialVariant: DEFAULT_MATERIAL_VARIANT_ID })
-                  }
+                  onClick={() => onSetControls({ materialVariant: variant.id })}
                 >
-                  {copy.materialVariantDefault}
+                  {variant.name}
                 </button>
-                {materialVariants.map((variant) => (
-                  <button
-                    key={variant.id}
-                    type="button"
-                    className={`chip${
-                      controls.materialVariant === variant.id ? " active" : ""
-                    }`}
-                    onClick={() => onSetControls({ materialVariant: variant.id })}
-                  >
-                    {variant.name}
-                  </button>
-                ))}
-              </div>
-            </>
+              ))}
+            </div>
           )}
         </div>
       )}
