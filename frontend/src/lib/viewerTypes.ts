@@ -38,6 +38,13 @@ export type MaterialVariantInfo = {
   bindings: MaterialVariantBinding[];
 };
 
+export type ModelCameraInfo = {
+  id: string;
+  name: string;
+  sourceName: string;
+  camera: THREE.Camera;
+};
+
 export type ModelState = {
   object: THREE.Object3D;
   animations: THREE.AnimationClip[];
@@ -46,6 +53,7 @@ export type ModelState = {
   stats: ModelStats;
   customProperties: CustomPropertySection[];
   materialVariants: MaterialVariantInfo[];
+  cameras: ModelCameraInfo[];
   source: "local" | "example";
   cesiumUrl: string | null;
 };
@@ -95,6 +103,7 @@ export type ControlsState = {
   animationPlay: boolean;
   animationSpeed: number;
   materialVariant: string;
+  modelCamera: string;
   satelliteMode: SatelliteMode;
   rightAscensionHours: number;
   declinationDeg: number;
