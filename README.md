@@ -1,3 +1,5 @@
+
+
 # Simple 3D Viewer
 
 [English](README.md) | [中文](README.zh-CN.md)
@@ -24,6 +26,7 @@ Portable single-file offline 3D viewer (Wails + React + three.js) for quick drag
 
 ## Development
 Frontend (from `frontend/`):
+- `pnpm install`
 - `pnpm run dev`
 - `pnpm run build`
 - `pnpm run preview`
